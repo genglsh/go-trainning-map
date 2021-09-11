@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package api.classmate.v1;
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+option go_package = "go-trainning-map/api/classmate/v1;v1";
+
+
+
+
+service PeopleService {
+
+  rpc CreateCollegeInfo(CreateCollegeInfoRequest)returns (google.protobuf.Empty) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary : "create classmate"
+    };
+    option (google.api.http) = {
+      post: "/v1/people/{ID}"
+      body: "*"
+    };
+  }
+
+  rpc GetCollegeInfo(GetCollegeInfoRequest) returns (GetCollegeInfoReply){
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary : "get classmate"
+    };
+    option (google.api.http) = {
+      get: "/v1/people/{ID}"
+    };
+  }
+}
+
+message People{
+  string ID = 1;
+  string Name = 2;
+  string telephone = 3;
+}
+
+message CreateCollegeInfoRequest{
+  string RequestID =1;
+  repeated People Peoples  =2;
+}
+
+message GetCollegeInfoRequest{
+  string RequestID = 1;
+  string ID  =2;
+}
+
+message GetCollegeInfoReply{
+  string  RequestID =1;
+  People Peoples = 2;
+}
