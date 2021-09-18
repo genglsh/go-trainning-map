@@ -1,16 +1,22 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+
+	"github.com/go-kratos/kratos/v2/transport/grpc"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/genglsh/go-trainning-map/app/people/service/internal/conf"
 
-	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/config/file"
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/transport/grpc"
 	"gopkg.in/yaml.v2"
 )
 
@@ -26,18 +32,6 @@ var (
 
 func init() {
 	flag.StringVar(&flagconf, "conf", "/conf", "config path, eg: -conf config.yaml")
-}
-
-func newApp(logger log.Logger, gs *grpc.Server) *kratos.App {
-	return kratos.New(
-		kratos.Name(Name),
-		kratos.Version(Version),
-		kratos.Metadata(map[string]string{}),
-		kratos.Logger(logger),
-		kratos.Server(
-			gs,
-		),
-	)
 }
 
 func main() {
@@ -66,14 +60,49 @@ func main() {
 		panic(err)
 	}
 
-	app, cleanup, err := initApp(bc.Server, bc.Data, logger)
+	grpcServer, cleanup, err := initApp(bc.Server, bc.Data, logger)
 	if err != nil {
 		panic(err)
 	}
 	defer cleanup()
 
-	// start and wait for stop signal
-	if err := app.Run(); err != nil {
+	//start and wait for stop signal
+	if err := week2job(grpcServer); err != nil {
 		panic(err)
 	}
+}
+
+func week2job(server ...*grpc.Server) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	eg, ctx := errgroup.WithContext(ctx)
+	wg := sync.WaitGroup{}
+	for _, srv := range server {
+		srv := srv
+		eg.Go(func() error {
+			<-ctx.Done() // wait for stop signal
+			return srv.Stop(ctx)
+		})
+		wg.Add(1)
+		eg.Go(func() error {
+			wg.Done()
+			return srv.Start(ctx)
+		})
+	}
+	wg.Wait()
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, []os.Signal{syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT}...)
+	eg.Go(func() error {
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-c:
+				cancel()
+			}
+		}
+	})
+	if err := eg.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
 }

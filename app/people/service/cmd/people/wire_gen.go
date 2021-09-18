@@ -11,13 +11,13 @@ import (
 	"github.com/genglsh/go-trainning-map/app/people/service/internal/data"
 	"github.com/genglsh/go-trainning-map/app/people/service/internal/server"
 	"github.com/genglsh/go-trainning-map/app/people/service/internal/service"
-	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/transport/grpc"
 )
 
 // Injectors from wire.go:
 
-func initApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*kratos.App, func(), error) {
+func initApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*grpc.Server, func(), error) {
 	client := data.NewEntClient(confData, logger)
 	dataData, cleanup, err := data.NewData(client, logger)
 	if err != nil {
@@ -27,8 +27,7 @@ func initApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	peopleUseCase := biz.NewPeopleUseCase(peopleRepo, logger)
 	peopleService := service.NewPeopleService(peopleUseCase, logger)
 	grpcServer := server.NewGRPCServer(confServer, logger, peopleService)
-	app := newApp(logger, grpcServer)
-	return app, func() {
+	return grpcServer, func() {
 		cleanup()
 	}, nil
 }
